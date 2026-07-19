@@ -33,6 +33,17 @@ async def analyze_resume(
     nlp = request.app.state.nlp
     embedder = request.app.state.embedder
 
+    # Lazy load SentenceTransformer only when first needed
+    if embedder is None:
+        from sentence_transformers import SentenceTransformer
+        from backend.core.config import SENTENCE_TRANSFORMER_MODEL
+
+        logger.info(f"Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}")
+
+        embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
+
+        request.app.state.embedder = embedder
+
     print("STEP 2 - Before resume.read()")
     file_bytes = await resume.read()
 
