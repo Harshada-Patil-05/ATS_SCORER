@@ -1,0 +1,26 @@
+.DS_Store
+
+# Datasets
+*.csv
+
+# Logs
+*.log
+
+# ML models
+*.safetensors
+*.pkl
+
+# Environment
+.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+#secrets
+.streamlit/secrets.toml
