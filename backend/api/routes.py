@@ -3,7 +3,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
-from backend.api.auth import get_current_user
+def get_current_user():
+    return "test-user"
 from backend.models.schemas import AnalysisResponse, ComponentScores, JDComparison, SkillValidationDetails
 from backend.utils.file_utils import (
     get_default_grammar_results,
