@@ -29,34 +29,40 @@ def analyze_resume(
     access_token: str,
     job_description: str = "",
 ):
-    print("1. Entered analyze_resume()")
+    backend = _backend_url()
+
+    print("=" * 60)
+    print("Backend URL:", backend)
+    print("Request URL:", f"{backend}/api/v1/analyze-resume")
+    print("=" * 60)
 
     files = {
         "resume": (resume_file.name, resume_file.getvalue(), resume_file.type),
     }
 
-    print("2. Files prepared")
+    data = {
+        "job_description": job_description,
+    }
 
-    data = {"job_description": job_description}
+    try:
+        response = requests.post(
+            f"{backend}/api/v1/analyze-resume",
+            files=files,
+            data=data,
+            headers=_auth_headers(access_token),
+            timeout=180,
+        )
 
-    print("3. Sending POST request...")
+        print("Status Code:", response.status_code)
+        print("Response Text:", response.text)
 
-    response = requests.post(
-        f"{_backend_url()}/api/v1/analyze-resume",
-        files=files,
-        data=data,
-        headers=_auth_headers(access_token),
-        timeout=180,
-    )
+        response.raise_for_status()
 
-    print("4. Response received:", response.status_code)
+        return response.json()
 
-    response.raise_for_status()
-
-    print("5. Returning JSON")
-
-    return response.json()
-
+    except Exception as e:
+        print("ERROR:", e)
+        raise
 
 def get_history(access_token: str) -> List[Dict[str, Any]]:
     response = requests.get(
