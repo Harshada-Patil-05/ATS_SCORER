@@ -3,8 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
-def get_current_user():
-    return "test-user"
+from backend.api.auth import get_current_user
 from backend.models.schemas import AnalysisResponse, ComponentScores, JDComparison, SkillValidationDetails
 from backend.utils.file_utils import (
     get_default_grammar_results,
@@ -28,113 +27,109 @@ async def analyze_resume(
     job_description: str = Form('', description='Job description text (optional)'),
     user_id: str = Depends(get_current_user),
 ):
-    print("========== ENDPOINT ENTERED ==========")
+    try:
+        print("========== ENDPOINT ENTERED ==========")
 
-    print("STEP 1 - Getting models")
-    nlp = request.app.state.nlp
-    embedder = request.app.state.embedder
+        print("STEP 1 - Getting models")
+        nlp = request.app.state.nlp
+        embedder = request.app.state.embedder
 
-    # Lazy load SentenceTransformer only when first needed
-    if embedder is None:
-        from sentence_transformers import SentenceTransformer
-        from backend.core.config import SENTENCE_TRANSFORMER_MODEL
+        print("STEP 2 - Before resume.read()")
+        file_bytes = await resume.read()
 
-        logger.info(f"Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}")
+        print("STEP 3 - Resume read successfully")
+        print("Bytes:", len(file_bytes))
 
-        embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
+        filename = resume.filename or "resume"
 
-        request.app.state.embedder = embedder
+        print("STEP 4 - Importing parser")
 
-    print("STEP 2 - Before resume.read()")
-    file_bytes = await resume.read()
-
-    print("STEP 3 - Resume read successfully")
-    print("Bytes:", len(file_bytes))
-
-    filename = resume.filename or "resume"
-
-    print("STEP 4 - Importing parser")
-
-    from backend.services.resume_parser import (
-        FileParsingError,
-        FileValidationError,
-        parse_resume_file,
-    )
-
-    print("STEP 5 - Calling parse_resume_file()")
-
-    resume_text, _metadata = parse_resume_file(file_bytes, filename)
-
-    print("STEP 6 - Resume parsed")
-    print("Characters:", len(resume_text))
-
-    print("STEP 7 - Importing analyzer")
-
-    from backend.services.resume_analyzer import analyze_full_resume
-
-    print("STEP 8 - Calling analyze_full_resume()")
-
-    result = analyze_full_resume(
-        resume_text=resume_text,
-        nlp=nlp,
-        embedder=embedder,
-        job_description=job_description
-    )
-
-    print("STEP 9 - Analysis completed")
-    warnings: List[str] = []
-
-
-    #Extract jd_comparison details
-    jd_comparison_result = None
-    if result.get('jd_comparison'):
-        jd_comparison_result = JDComparison(
-            match_percentage=round(float(result['jd_comparison'].get('match_percentage', 0.0)), 1),
-            semantic_similarity=round(float(result['jd_comparison'].get('semantic_similarity', 0.0)), 3),
-            matched_keywords=result['jd_comparison'].get('matched_keywords', [])[:20],
-            missing_keywords=result['jd_comparison'].get('missing_keywords', [])[:15],
-            skills_gap=result['jd_comparison'].get('skills_gap', [])[:10],
+        from backend.services.resume_parser import (
+            FileParsingError,
+            FileValidationError,
+            parse_resume_file,
         )
 
-    # Convert detailed_feedback objects from prediction into what schema expects
-    detailed_fb = result.get('detailed_feedback', [])
-    
+        print("STEP 5 - Calling parse_resume_file()")
 
-    svd_raw = result.get('skill_validation_details') or {}
-    skill_val_details = SkillValidationDetails(
-        validated       = svd_raw.get('validated', []),
-        unvalidated     = svd_raw.get('unvalidated', []),
-        total           = svd_raw.get('total', 0),
-        validated_count = svd_raw.get('validated_count', 0),
-        validation_pct  = svd_raw.get('validation_pct', 0.0),
-    )
+        resume_text, _metadata = parse_resume_file(file_bytes, filename)
 
-    response = AnalysisResponse(
-        ATS_score=result['ats_score'],
-        component_scores=ComponentScores(**result['component_scores']),
-        issues_summary=result['issues_summary'],
-        detailed_feedback=detailed_fb,
-        jd_match_analysis=jd_comparison_result,
-        skill_validation_details=skill_val_details,
+        print("STEP 6 - Resume parsed")
+        print("Characters:", len(resume_text))
 
-        # Retro-compatibility fields
-        ats_score=result['ats_score'],
-        keyword_match=jd_comparison_result.match_percentage if jd_comparison_result else 0.0,
-        missing_keywords=result.get('missing_keywords', []),
-        matched_keywords=result.get('matched_keywords', []),
-        skills=list(result.get('skills', [])[:20]),
-        jd_comparison=jd_comparison_result,
-        interpretation=result.get('interpretation', '')
-    )
+        print("STEP 7 - Importing analyzer")
 
+        from backend.services.resume_analyzer import analyze_full_resume
 
-    try:
-        from backend.database.supabase_db import save_analysis
-        await save_analysis(user_id, filename, result)
-    except Exception as exc:
-        logger.warning(f'History save failed (non-blocking): {exc}')
+        print("STEP 8 - Calling analyze_full_resume()")
 
-    return response
+        result = analyze_full_resume(
+            resume_text=resume_text,
+            nlp=nlp,
+            embedder=embedder,
+            job_description=job_description
+        )
+
+        print("STEP 9 - Analysis completed")
+
+        jd_comparison_result = None
+        if result.get('jd_comparison'):
+            jd_comparison_result = JDComparison(
+                match_percentage=round(float(result['jd_comparison'].get('match_percentage', 0.0)), 1),
+                semantic_similarity=round(float(result['jd_comparison'].get('semantic_similarity', 0.0)), 3),
+                matched_keywords=result['jd_comparison'].get('matched_keywords', [])[:20],
+                missing_keywords=result['jd_comparison'].get('missing_keywords', [])[:15],
+                skills_gap=result['jd_comparison'].get('skills_gap', [])[:10],
+            )
+
+        detailed_fb = result.get('detailed_feedback', [])
+
+        svd_raw = result.get('skill_validation_details') or {}
+        skill_val_details = SkillValidationDetails(
+            validated=svd_raw.get('validated', []),
+            unvalidated=svd_raw.get('unvalidated', []),
+            total=svd_raw.get('total', 0),
+            validated_count=svd_raw.get('validated_count', 0),
+            validation_pct=svd_raw.get('validation_pct', 0.0),
+        )
+
+        response = AnalysisResponse(
+            ATS_score=result['ats_score'],
+            component_scores=ComponentScores(**result['component_scores']),
+            issues_summary=result['issues_summary'],
+            detailed_feedback=detailed_fb,
+            jd_match_analysis=jd_comparison_result,
+            skill_validation_details=skill_val_details,
+
+            ats_score=result['ats_score'],
+            keyword_match=jd_comparison_result.match_percentage if jd_comparison_result else 0.0,
+            missing_keywords=result.get('missing_keywords', []),
+            matched_keywords=result.get('matched_keywords', []),
+            skills=list(result.get('skills', [])[:20]),
+            jd_comparison=jd_comparison_result,
+            interpretation=result.get('interpretation', '')
+        )
+
+        print("STEP 10 - Before save_analysis")
+
+        try:
+            from backend.database.supabase_db import save_analysis
+            await save_analysis(user_id, filename, result)
+            print("STEP 11 - save_analysis SUCCESS")
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            print("SAVE_ANALYSIS ERROR:", str(exc))
+            logger.warning(f'History save failed (non-blocking): {exc}')
+
+        print("STEP 12 - Returning response")
+        return response
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("FATAL ERROR:", str(e))
+        raise
 
 @router.get('/health')
 async def health_check(request: Request):
