@@ -31,10 +31,10 @@ def analyze_resume(
 ):
     backend = _backend_url()
 
-    print("=" * 60)
-    print("Backend URL:", backend)
-    print("Request URL:", f"{backend}/api/v1/analyze-resume")
-    print("=" * 60)
+    # Show debug info directly in the Streamlit app
+    st.write("### Debug")
+    st.write("Backend URL:", backend)
+    st.write("Request URL:", f"{backend}/api/v1/analyze-resume")
 
     files = {
         "resume": (resume_file.name, resume_file.getvalue(), resume_file.type),
@@ -53,15 +53,15 @@ def analyze_resume(
             timeout=180,
         )
 
-        print("Status Code:", response.status_code)
-        print("Response Text:", response.text)
+        st.write("Status Code:", response.status_code)
+        st.write("Response Text:", response.text)
 
         response.raise_for_status()
 
         return response.json()
 
     except Exception as e:
-        print("ERROR:", e)
+        st.error(f"Exception: {e}")
         raise
 
 def get_history(access_token: str) -> List[Dict[str, Any]]:
