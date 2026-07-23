@@ -29,40 +29,34 @@ def analyze_resume(
     access_token: str,
     job_description: str = "",
 ):
-    backend = _backend_url()
-
-    # Show debug info directly in the Streamlit app
-    st.write("### Debug")
-    st.write("Backend URL:", backend)
-    st.write("Request URL:", f"{backend}/api/v1/analyze-resume")
+    print("1. Entered analyze_resume()")
 
     files = {
         "resume": (resume_file.name, resume_file.getvalue(), resume_file.type),
     }
 
-    data = {
-        "job_description": job_description,
-    }
+    print("2. Files prepared")
 
-    try:
-        response = requests.post(
-            f"{backend}/api/v1/analyze-resume",
-            files=files,
-            data=data,
-            headers=_auth_headers(access_token),
-            timeout=180,
-        )
+    data = {"job_description": job_description}
 
-        st.write("Status Code:", response.status_code)
-        st.write("Response Text:", response.text)
+    print("3. Sending POST request...")
 
-        response.raise_for_status()
+    response = requests.post(
+        f"{_backend_url()}/api/v1/analyze-resume",
+        files=files,
+        data=data,
+        headers=_auth_headers(access_token),
+        timeout=180,
+    )
 
-        return response.json()
+    print("4. Response received:", response.status_code)
 
-    except Exception as e:
-        st.error(f"Exception: {e}")
-        raise
+    response.raise_for_status()
+
+    print("5. Returning JSON")
+
+    return response.json()
+
 
 def get_history(access_token: str) -> List[Dict[str, Any]]:
     response = requests.get(
